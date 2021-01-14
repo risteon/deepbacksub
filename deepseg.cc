@@ -118,8 +118,10 @@ int main(int argc, char* argv[]) {
 
 	int debug  = 0;
 	int threads= 2;
-	int width  = 640;
-	int height = 480;
+	//int width  = 640;
+	//int height = 480;
+	int width  = 1280;
+	int height = 720;
 	const char *back = "images/background.png";
 	const char *vcam = "/dev/video0";
 	const char *ccam = "/dev/video1";
@@ -196,9 +198,10 @@ int main(int argc, char* argv[]) {
 	float ratio = (float)input.cols/(float) input.rows;
 
 	// initialize mask and square ROI in center
-	cv::Rect roidim = cv::Rect((width-height/ratio)/2,0,height/ratio,height);
+	//cv::Rect roidim = cv::Rect((width-height/ratio)/2,0,height/ratio,height);
+	//cv::Rect roidim = cv::Rect(0,0,width,height);
 	cv::Mat mask = cv::Mat::ones(height,width,CV_8UC1);
-	cv::Mat mroi = mask(roidim);
+	//cv::Mat mroi = mask(roidim);
 
 	// erosion/dilation element
 	cv::Mat element = cv::getStructuringElement( cv::MORPH_RECT, cv::Size(5,5) );
@@ -237,16 +240,19 @@ int main(int argc, char* argv[]) {
 		if (raw.rows == 0 || raw.cols == 0) continue; // sanity check
 
 		// map ROI
-		cv::Mat roi = raw(roidim);
+		//cv::Mat roi = raw(roidim);
 
 		// resize ROI to input size
 		cv::Mat in_u8_yuv, in_u8_rgb;
-		cv::resize(roi,in_u8_yuv,cv::Size(input.cols,input.rows));
+		//cv::resize(roi,in_u8_yuv,cv::Size(input.cols,input.rows));
+		cv::resize(raw,in_u8_yuv,cv::Size(input.cols,input.rows));
 		cv::cvtColor(in_u8_yuv,in_u8_rgb,CV_YUV2RGB_YUYV);
 		// TODO: can convert directly to float?
 
 		// convert to float and normalize values to [-1;1]
-		in_u8_rgb.convertTo(input,CV_32FC3,1.0/128.0,-1.0);
+		//in_u8_rgb.convertTo(input,CV_32FC3,1.0/128.0,-1.0);
+		// convert to float and normalize values to [0;1] (see google meet model card)
+		in_u8_rgb.convertTo(input,CV_32FC3,1.0/255.0,0.0);
 
 		// Run inference
 		TFLITE_MINIMAL_CHECK(interpreter->Invoke() == kTfLiteOk);
@@ -257,7 +263,7 @@ int main(int argc, char* argv[]) {
 		uint8_t* out = (uint8_t*)ofinal.data;
 
 		// find class with maximum probability
-		if (strstr(modelname,"deeplab"))
+		if (strstr(modelname,"deeplab")) {
 		for (unsigned int n = 0; n < output.total(); n++) {
 			float maxval = -10000; int maxpos = 0;
 			for (int i = 0; i < cnum; i++) {
@@ -269,16 +275,18 @@ int main(int argc, char* argv[]) {
 			// set mask to 0 where class == person
 			out[n] = (maxpos==pers ? 0 : 255);
 		}
+    }
 
 		// threshold probability
-		if (strstr(modelname,"body-pix"))
+		if (strstr(modelname,"body-pix")) {
 		for (unsigned int n = 0; n < output.total(); n++) {
 			// FIXME: hardcoded threshold
 			if (tmp[n] > 0.65) out[n] = 0; else out[n] = 255;
 		}
+    }
 
 		// Google Meet segmentation network
-		if (strstr(modelname,"segm_"))
+		if (strstr(modelname,"segm_")) {
 			/* 256 x 144 x 2 tensor for the full model or 160 x 96 x 2
 			 * tensor for the light model with masks for background
 			 * (channel 0) and person (channel 1) where values are in
@@ -290,16 +298,20 @@ int main(int argc, char* argv[]) {
 			float exp1 = expf(tmp[2*n+1]);
 			float p0 = exp0 / (exp0+exp1);
 			float p1 = exp1 / (exp0+exp1);
-			if (p0 < p1) out[n] = 0; else out[n] = 255;
+			//if (p0 < p1) out[n] = 0; else out[n] = 255;
+			if (p0 < .25) out[n] = 0; else out[n] = 255;
 		}
+    }
 
 		// denoise
 		cv::Mat tmpbuf;
-		cv::dilate(ofinal,tmpbuf,element);
-		cv::erode(tmpbuf,ofinal,element);
+		//cv::dilate(ofinal,tmpbuf,element);
+		//cv::erode(tmpbuf,ofinal,element);
 
 		// scale up into full-sized mask
-		cv::resize(ofinal,mroi,cv::Size(raw.rows/ratio,raw.rows));
+		//cv::resize(ofinal,mroi,cv::Size(raw.rows/ratio,raw.rows));
+		//cv::resize(ofinal,mroi,cv::Size(width,height));
+		cv::resize(ofinal,mask,cv::Size(width,height));
 
 		// copy background over raw cam image using mask
 		bg.copyTo(raw,mask);
