@@ -264,25 +264,25 @@ int main(int argc, char* argv[]) {
 
 		// find class with maximum probability
 		if (strstr(modelname,"deeplab")) {
-		for (unsigned int n = 0; n < output.total(); n++) {
-			float maxval = -10000; int maxpos = 0;
-			for (int i = 0; i < cnum; i++) {
-				if (tmp[n*cnum+i] > maxval) {
-					maxval = tmp[n*cnum+i];
-					maxpos = i;
-				}
-			}
-			// set mask to 0 where class == person
-			out[n] = (maxpos==pers ? 0 : 255);
-		}
+		  for (unsigned int n = 0; n < output.total(); n++) {
+		  	float maxval = -10000; int maxpos = 0;
+		  	for (int i = 0; i < cnum; i++) {
+		  		if (tmp[n*cnum+i] > maxval) {
+		  			maxval = tmp[n*cnum+i];
+		  			maxpos = i;
+		  		}
+		  	}
+		  	// set mask to 0 where class == person
+		  	out[n] = (maxpos==pers ? 0 : 255);
+		  }
     }
 
 		// threshold probability
 		if (strstr(modelname,"body-pix")) {
-		for (unsigned int n = 0; n < output.total(); n++) {
-			// FIXME: hardcoded threshold
-			if (tmp[n] > 0.65) out[n] = 0; else out[n] = 255;
-		}
+		  for (unsigned int n = 0; n < output.total(); n++) {
+		  	// FIXME: hardcoded threshold
+		  	if (tmp[n] > 0.65) out[n] = 0; else out[n] = 255;
+		  }
     }
 
 		// Google Meet segmentation network
@@ -299,19 +299,19 @@ int main(int argc, char* argv[]) {
 			float p0 = exp0 / (exp0+exp1);
 			float p1 = exp1 / (exp0+exp1);
 			//if (p0 < p1) out[n] = 0; else out[n] = 255;
-			if (p0 < .25) out[n] = 0; else out[n] = 255;
+			if (p0 < 0.5) out[n] = 0; else out[n] = 255;
 		}
     }
 
 		// denoise
-		cv::Mat tmpbuf;
+		//cv::Mat tmpbuf;
 		//cv::dilate(ofinal,tmpbuf,element);
 		//cv::erode(tmpbuf,ofinal,element);
 
 		// scale up into full-sized mask
 		//cv::resize(ofinal,mroi,cv::Size(raw.rows/ratio,raw.rows));
 		//cv::resize(ofinal,mroi,cv::Size(width,height));
-		cv::resize(ofinal,mask,cv::Size(width,height));
+		cv::resize(ofinal,mask,cv::Size(width,height),0, 0, cv::INTER_LINEAR);
 
 		// copy background over raw cam image using mask
 		bg.copyTo(raw,mask);
@@ -330,7 +330,9 @@ int main(int argc, char* argv[]) {
 		float t = (e2-e1)/cv::getTickFrequency();
 		printf("FPS: %5.2f\r",1.0/t);
 		fflush(stdout);
-		if (debug < 2) continue;
+		if (debug < 2) {
+      continue;
+    }
 
 		cv::Mat test;
 		cv::cvtColor(raw,test,CV_YUV2BGR_YUYV);
